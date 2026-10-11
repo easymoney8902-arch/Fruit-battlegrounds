@@ -1,0 +1,1155 @@
+-- Fruit Battlegrounds GUI Script
+-- Rebuilt with custom sleek GUI, scrollable fruit picker, and working codes
+
+--[[ 
+    FEATURES:
+    - Sleek custom dark GUI (no external UI library dependency)
+    - Auto Spin (Normal / Fast)
+    - Auto Farm (key selector)
+    - Fruit Picker with scrollable list (all fruits)
+    - Code Redeemer with all current working codes (Oct 2026)
+    - Kill / Gem / Level Notifications
+    - Leaderboard Spoofer
+    - Draggable window
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VIM = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ============================================================
+-- WORKING CODES (Oct 2026)
+-- ============================================================
+local WORKING_CODES = {
+    { code = "EVENHIGHER!",     reward = "800 Gems (New)" },
+    { code = "OMGUPDATE22",     reward = "800 Gems" },
+    { code = "HIGHER1M120K",    reward = "800 Gems" },
+    { code = "YOO1M110K!",      reward = "2,000 Gems" },
+    { code = "BIGMILLIHUNNID!", reward = "2,000 Gems" },
+    { code = "ITSTHEBILLION!",  reward = "8,500 Gems + Title" },
+    { code = "CODEFIX",         reward = "Free Title" },
+    { code = "MILLI90SWAG",     reward = "600 Gems" },
+    { code = "FLYING1M80K",     reward = "600 Gems" },
+    { code = "BIG1M170K!!",     reward = "600 Gems" },
+    { code = "1M60WOWZER",      reward = "600 Gems" },
+    { code = "MILLITEN!",       reward = "600 Gems" },
+    { code = "OMGBIGMILLI!!!",  reward = "6,000 Gems" },
+    { code = "THEMARINEHERO",   reward = "1,500 Gems" },
+    { code = "THANKSFORDAMILLY",reward = "2,000 Gems + Title" },
+    { code = "PRESENT4YOU",     reward = "700 Gems" },
+    { code = "ANTICIPATION",    reward = "700 Gems" },
+    { code = "BIGUPDATE20",     reward = "550 Gems" },
+    { code = "FREEBOOT!",       reward = "500 Gems" },
+    { code = "REBOOTPART2",     reward = "500 Gems" },
+    { code = "UPDATE21!",       reward = "500 Gems" },
+    { code = "TIMEISVALUABLE",  reward = "350 Gems" },
+    { code = "WOW1MIL20!",      reward = "500 Gems" },
+    { code = "AYY1M30!",        reward = "300 Gems" },
+    { code = "1M40KRAZY!!",     reward = "300 Gems" },
+    { code = "CLOSERR990K!",    reward = "500 Gems" },
+    { code = "POW970K",         reward = "500 Gems" },
+    { code = "WOWZER910",       reward = "500 Gems" },
+    { code = "HYPEE920K!",      reward = "500 Gems" },
+    { code = "950KOMGGG!",      reward = "500 Gems" },
+    { code = "860KHYPEE",       reward = "500 Gems" },
+    { code = "870OMG!",         reward = "500 Gems" },
+    { code = "MAGNIFICENT890K!!",reward = "500 Gems" },
+    { code = "IAMLEOPARD",      reward = "Gems" },
+    { code = "BIGDAY",          reward = "350 Gems" },
+    { code = "pleasezakineedthis", reward = "800 Gems" },
+    { code = "LOL960K!",        reward = "500 Gems" },
+    { code = "4MPUTAT3",        reward = "Gems" },
+}
+
+-- ============================================================
+-- FULL FRUIT LIST (All fruits in Fruit Battlegrounds)
+-- ============================================================
+local ALL_FRUITS = {
+    -- S+ Tier
+    "DarkXQuake", "Dough V2", "Okuchi", "Ope V2", "Soul",
+    -- S Tier
+    "Dough", "Dragon V2", "Flame V2", "Ice V2", "Impact",
+    "Leopard V2", "Light V2", "Lightning", "Magma V2", "Nika", "Ope", "Venom",
+    -- A Tier
+    "Dragon", "Gravity", "Leopard", "Light", "Love",
+    "Magma", "Magnet", "Phoenix", "Quake", "TS Rubber",
+    -- B Tier
+    "Falcon", "Flame", "Ice", "Paw", "Snow", "String",
+    -- C Tier
+    "Ash", "Barrier", "Bomb", "Darkness", "Gas", "Sand",
+    -- D Tier
+    "Chop", "Rubber", "Smoke",
+}
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local State = {
+    AutoSpin       = false,
+    AutoSpinThread = nil,
+    SpinType       = "Normal",
+    AutoFarm       = false,
+    AutoFarmThread = nil,
+    FarmKeys       = { "1", "2", "3", "4" },
+    SelectedFarm   = {},
+    SelectedFruit  = ALL_FRUITS[1],
+    AutoFruitHunt  = false,
+    AutoHuntThread = nil,
+    ActiveTab      = "Main",
+    LeaderSpoof    = false,
+    LeadData       = { UserId = "", Wins = "", Position = "1" },
+    KillData       = { VictimId = "", PlayerId = "", Length = "8" },
+    GemAmount      = "",
+    LevelAmount    = "",
+}
+
+-- ============================================================
+-- GUI CONSTRUCTION
+-- ============================================================
+
+-- Clean up any existing GUI
+if PlayerGui:FindFirstChild("FBGui") then
+    PlayerGui:FindFirstChild("FBGui"):Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FBGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- ── Colours ──────────────────────────────────────────────────
+local C = {
+    BG         = Color3.fromRGB(12,  12,  18),
+    Panel      = Color3.fromRGB(18,  18,  28),
+    Section    = Color3.fromRGB(22,  22,  35),
+    Accent     = Color3.fromRGB(90,  60, 200),
+    AccentHov  = Color3.fromRGB(110, 80, 230),
+    AccentDim  = Color3.fromRGB(50,  35, 120),
+    TabOn      = Color3.fromRGB(90,  60, 200),
+    TabOff     = Color3.fromRGB(30,  30,  45),
+    Text       = Color3.fromRGB(230, 230, 240),
+    TextDim    = Color3.fromRGB(130, 130, 160),
+    Green      = Color3.fromRGB(60,  200, 100),
+    Red        = Color3.fromRGB(200, 60,  70),
+    Border     = Color3.fromRGB(55,  55,  80),
+    ToggleOn   = Color3.fromRGB(90,  60, 200),
+    ToggleOff  = Color3.fromRGB(40,  40,  60),
+    ItemHov    = Color3.fromRGB(35,  35,  55),
+    ItemSel    = Color3.fromRGB(65,  40, 160),
+}
+
+-- ── Helper: make UICorner ─────────────────────────────────────
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 6)
+    c.Parent = parent
+end
+
+local function stroke(parent, color, thick)
+    local s = Instance.new("UIStroke")
+    s.Color = color or C.Border
+    s.Thickness = thick or 1
+    s.Parent = parent
+end
+
+-- ── Helper: make a Label ─────────────────────────────────────
+local function label(parent, text, size, color, xAlign)
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1, 0, 0, size + 4)
+    l.Text = text
+    l.TextSize = size
+    l.Font = Enum.Font.GothamBold
+    l.TextColor3 = color or C.Text
+    l.TextXAlignment = xAlign or Enum.TextXAlignment.Left
+    l.Parent = parent
+    return l
+end
+
+-- ── Helper: tween BG colour ──────────────────────────────────
+local function tweenBG(obj, color, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.15), { BackgroundColor3 = color }):Play()
+end
+
+-- ── Helper: tween TextColor3 ─────────────────────────────────
+local function tweenTxt(obj, color, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.15), { TextColor3 = color }):Play()
+end
+
+-- ── Main Window ───────────────────────────────────────────────
+local Window = Instance.new("Frame")
+Window.Name = "Window"
+Window.Size = UDim2.new(0, 760, 0, 500)
+Window.Position = UDim2.new(0.5, -380, 0.5, -250)
+Window.BackgroundColor3 = C.BG
+Window.BorderSizePixel = 0
+Window.Parent = ScreenGui
+corner(Window, 10)
+stroke(Window, C.Border, 1.5)
+
+-- Drop shadow
+local Shadow = Instance.new("ImageLabel")
+Shadow.Size = UDim2.new(1, 40, 1, 40)
+Shadow.Position = UDim2.new(0, -20, 0, -20)
+Shadow.BackgroundTransparency = 1
+Shadow.Image = "rbxassetid://6014261993"
+Shadow.ImageColor3 = Color3.new(0,0,0)
+Shadow.ImageTransparency = 0.5
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+Shadow.ZIndex = 0
+Shadow.Parent = Window
+
+-- ── Title Bar ────────────────────────────────────────────────
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 44)
+TitleBar.BackgroundColor3 = C.Panel
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 2
+TitleBar.Parent = Window
+corner(TitleBar, 10)
+
+-- Bottom cover for title bar corners
+local TitleCover = Instance.new("Frame")
+TitleCover.Size = UDim2.new(1, 0, 0, 10)
+TitleCover.Position = UDim2.new(0, 0, 1, -10)
+TitleCover.BackgroundColor3 = C.Panel
+TitleCover.BorderSizePixel = 0
+TitleCover.ZIndex = 2
+TitleCover.Parent = TitleBar
+
+-- Accent stripe
+local Stripe = Instance.new("Frame")
+Stripe.Size = UDim2.new(0, 4, 0, 28)
+Stripe.Position = UDim2.new(0, 12, 0.5, -14)
+Stripe.BackgroundColor3 = C.Accent
+Stripe.BorderSizePixel = 0
+Stripe.ZIndex = 3
+Stripe.Parent = TitleBar
+corner(Stripe, 2)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -140, 1, 0)
+TitleLabel.Position = UDim2.new(0, 24, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🍇  Fruit Battlegrounds  |  v2.0"
+TitleLabel.TextSize = 15
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = C.Text
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.ZIndex = 3
+TitleLabel.Parent = TitleBar
+
+-- Close button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -38, 0.5, -14)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 60)
+CloseBtn.Text = "✕"
+CloseBtn.TextSize = 13
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.ZIndex = 4
+CloseBtn.Parent = TitleBar
+corner(CloseBtn, 6)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(Window, TweenInfo.new(0.2), { Size = UDim2.new(0, 760, 0, 0) }):Play()
+    task.wait(0.21)
+    ScreenGui:Destroy()
+end)
+
+-- Minimize button
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 28, 0, 28)
+MinBtn.Position = UDim2.new(1, -70, 0.5, -14)
+MinBtn.BackgroundColor3 = Color3.fromRGB(200, 160, 40)
+MinBtn.Text = "–"
+MinBtn.TextSize = 16
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextColor3 = Color3.new(1,1,1)
+MinBtn.BorderSizePixel = 0
+MinBtn.ZIndex = 4
+MinBtn.Parent = TitleBar
+corner(MinBtn, 6)
+
+local minimized = false
+local ContentArea  -- defined later; reference needed here
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        TweenService:Create(Window, TweenInfo.new(0.2), { Size = UDim2.new(0, 760, 0, 44) }):Play()
+    else
+        TweenService:Create(Window, TweenInfo.new(0.2), { Size = UDim2.new(0, 760, 0, 500) }):Play()
+    end
+end)
+
+-- ── Drag ─────────────────────────────────────────────────────
+do
+    local dragging, dragStart, startPos = false, nil, nil
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = Window.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            Window.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+end
+
+-- ── Tab Bar ───────────────────────────────────────────────────
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, 0, 0, 38)
+TabBar.Position = UDim2.new(0, 0, 0, 44)
+TabBar.BackgroundColor3 = C.Panel
+TabBar.BorderSizePixel = 0
+TabBar.ZIndex = 2
+TabBar.Parent = Window
+
+local TabLayout = Instance.new("UIListLayout")
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+TabLayout.Padding = UDim.new(0, 4)
+TabLayout.Parent = TabBar
+
+local TabPadding = Instance.new("UIPadding")
+TabPadding.PaddingLeft = UDim.new(0, 8)
+TabPadding.Parent = TabBar
+
+local TAB_NAMES = { "Main", "Fruits", "Codes", "Visuals", "Spoofer" }
+local TabButtons = {}
+local Pages = {}
+
+-- ── Content Area ─────────────────────────────────────────────
+ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, 0, 1, -82)
+ContentArea.Position = UDim2.new(0, 0, 0, 82)
+ContentArea.BackgroundTransparency = 1
+ContentArea.BorderSizePixel = 0
+ContentArea.Parent = Window
+
+-- ── Notification Label ───────────────────────────────────────
+local NotifLabel = Instance.new("TextLabel")
+NotifLabel.Size = UDim2.new(0, 340, 0, 36)
+NotifLabel.Position = UDim2.new(0.5, -170, 1, -50)
+NotifLabel.BackgroundColor3 = C.AccentDim
+NotifLabel.Text = ""
+NotifLabel.TextSize = 13
+NotifLabel.Font = Enum.Font.Gotham
+NotifLabel.TextColor3 = C.Text
+NotifLabel.TextXAlignment = Enum.TextXAlignment.Center
+NotifLabel.BackgroundTransparency = 1
+NotifLabel.Visible = false
+NotifLabel.ZIndex = 10
+NotifLabel.Parent = ScreenGui
+corner(NotifLabel, 8)
+stroke(NotifLabel, C.Accent, 1)
+
+local function notify(msg, isErr)
+    NotifLabel.Text = msg
+    NotifLabel.BackgroundColor3 = isErr and C.Red or C.AccentDim
+    NotifLabel.BackgroundTransparency = 0
+    NotifLabel.Visible = true
+    TweenService:Create(NotifLabel, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play()
+    task.delay(3, function()
+        TweenService:Create(NotifLabel, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+        task.wait(0.45)
+        NotifLabel.Visible = false
+    end)
+end
+
+-- ── Page Factory ─────────────────────────────────────────────
+local function makePage(name)
+    local page = Instance.new("ScrollingFrame")
+    page.Name = name
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 4
+    page.ScrollBarImageColor3 = C.Accent
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = ContentArea
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft  = UDim.new(0, 14)
+    pad.PaddingRight = UDim.new(0, 14)
+    pad.PaddingTop   = UDim.new(0, 10)
+    pad.PaddingBottom= UDim.new(0, 10)
+    pad.Parent = page
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = page
+    return page
+end
+
+for _, name in ipairs(TAB_NAMES) do
+    Pages[name] = makePage(name)
+end
+
+-- ── Tab Button Factory ────────────────────────────────────────
+local function switchTab(name)
+    for n, page in pairs(Pages) do
+        page.Visible = (n == name)
+    end
+    for n, btn in pairs(TabButtons) do
+        tweenBG(btn, n == name and C.TabOn or C.TabOff)
+        tweenTxt(btn, n == name and Color3.new(1,1,1) or C.TextDim)
+    end
+    State.ActiveTab = name
+end
+
+for _, name in ipairs(TAB_NAMES) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 108, 0, 28)
+    btn.BackgroundColor3 = C.TabOff
+    btn.Text = name
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    btn.TextColor3 = C.TextDim
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 3
+    btn.Parent = TabBar
+    corner(btn, 6)
+    TabButtons[name] = btn
+    btn.MouseButton1Click:Connect(function() switchTab(name) end)
+    btn.MouseEnter:Connect(function()
+        if State.ActiveTab ~= name then tweenBG(btn, C.ItemHov) end
+    end)
+    btn.MouseLeave:Connect(function()
+        if State.ActiveTab ~= name then tweenBG(btn, C.TabOff) end
+    end)
+end
+
+-- ── Widget Builders ───────────────────────────────────────────
+
+-- Section header
+local function makeSection(page, title)
+    local hdr = Instance.new("TextLabel")
+    hdr.Size = UDim2.new(1, 0, 0, 22)
+    hdr.BackgroundTransparency = 1
+    hdr.Text = "  " .. title:upper()
+    hdr.TextSize = 11
+    hdr.Font = Enum.Font.GothamBold
+    hdr.TextColor3 = C.Accent
+    hdr.TextXAlignment = Enum.TextXAlignment.Left
+    hdr.Parent = page
+    local div = Instance.new("Frame")
+    div.Size = UDim2.new(1, 0, 0, 1)
+    div.BackgroundColor3 = C.AccentDim
+    div.BorderSizePixel = 0
+    div.Parent = page
+    return hdr
+end
+
+-- Toggle row
+local function makeToggle(page, text, tooltip, callback)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 40)
+    row.BackgroundColor3 = C.Section
+    row.BorderSizePixel = 0
+    row.Parent = page
+    corner(row, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -60, 1, 0)
+    lbl.Position = UDim2.new(0, 12, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextSize = 13
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextColor3 = C.Text
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    if tooltip and tooltip ~= "" then
+        local tip = Instance.new("TextLabel")
+        tip.Size = UDim2.new(1, -60, 0, 14)
+        tip.Position = UDim2.new(0, 12, 1, -16)
+        tip.BackgroundTransparency = 1
+        tip.Text = tooltip
+        tip.TextSize = 10
+        tip.Font = Enum.Font.Gotham
+        tip.TextColor3 = C.TextDim
+        tip.TextXAlignment = Enum.TextXAlignment.Left
+        tip.Parent = row
+    end
+
+    -- Toggle pill
+    local pill = Instance.new("Frame")
+    pill.Size = UDim2.new(0, 40, 0, 20)
+    pill.Position = UDim2.new(1, -52, 0.5, -10)
+    pill.BackgroundColor3 = C.ToggleOff
+    pill.BorderSizePixel = 0
+    pill.Parent = row
+    corner(pill, 10)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 16, 0, 16)
+    knob.Position = UDim2.new(0, 2, 0.5, -8)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    knob.BorderSizePixel = 0
+    knob.Parent = pill
+    corner(knob, 8)
+
+    local on = false
+    local function setToggle(val)
+        on = val
+        tweenBG(pill, on and C.ToggleOn or C.ToggleOff)
+        TweenService:Create(knob, TweenInfo.new(0.15), {
+            Position = on and UDim2.new(0, 22, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        }):Play()
+        callback(on)
+    end
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = row
+    btn.MouseButton1Click:Connect(function() setToggle(not on) end)
+
+    return row, setToggle
+end
+
+-- Button
+local function makeButton(page, text, callback, accent)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = accent or C.Accent
+    btn.Text = text
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BorderSizePixel = 0
+    btn.Parent = page
+    corner(btn, 6)
+    btn.MouseEnter:Connect(function()
+        tweenBG(btn, C.AccentHov)
+    end)
+    btn.MouseLeave:Connect(function()
+        tweenBG(btn, accent or C.Accent)
+    end)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- Textbox
+local function makeTextbox(page, placeholder, callback)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 34)
+    box.BackgroundColor3 = C.Section
+    box.Text = ""
+    box.PlaceholderText = placeholder
+    box.TextSize = 13
+    box.Font = Enum.Font.Gotham
+    box.TextColor3 = C.Text
+    box.PlaceholderColor3 = C.TextDim
+    box.BorderSizePixel = 0
+    box.ClearTextOnFocus = false
+    box.Parent = page
+    corner(box, 6)
+    stroke(box, C.Border, 1)
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 10)
+    pad.Parent = box
+
+    box.FocusLost:Connect(function(entered)
+        callback(box.Text)
+    end)
+    return box
+end
+
+-- Dropdown (static)
+local function makeDropdown(page, label_text, items, default, callback)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, 0, 0, 36)
+    container.BackgroundColor3 = C.Section
+    container.BorderSizePixel = 0
+    container.ClipsDescendants = false
+    container.Parent = page
+    corner(container, 6)
+    stroke(container, C.Border, 1)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, -4, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label_text
+    lbl.TextSize = 13
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextColor3 = C.TextDim
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = container
+
+    local valBtn = Instance.new("TextButton")
+    valBtn.Size = UDim2.new(0.5, -10, 0, 28)
+    valBtn.Position = UDim2.new(0.5, 0, 0.5, -14)
+    valBtn.BackgroundColor3 = C.AccentDim
+    valBtn.Text = default .. "  ▾"
+    valBtn.TextSize = 12
+    valBtn.Font = Enum.Font.GothamBold
+    valBtn.TextColor3 = C.Text
+    valBtn.BorderSizePixel = 0
+    valBtn.ZIndex = 5
+    valBtn.Parent = container
+    corner(valBtn, 6)
+
+    local dropFrame = Instance.new("Frame")
+    dropFrame.Size = UDim2.new(0.5, -10, 0, #items * 28 + 4)
+    dropFrame.Position = UDim2.new(0.5, 0, 1, 2)
+    dropFrame.BackgroundColor3 = C.Panel
+    dropFrame.BorderSizePixel = 0
+    dropFrame.Visible = false
+    dropFrame.ZIndex = 20
+    dropFrame.Parent = container
+    corner(dropFrame, 6)
+    stroke(dropFrame, C.Border, 1)
+
+    local dLayout = Instance.new("UIListLayout")
+    dLayout.FillDirection = Enum.FillDirection.Vertical
+    dLayout.Padding = UDim.new(0, 2)
+    dLayout.Parent = dropFrame
+
+    local dPad = Instance.new("UIPadding")
+    dPad.PaddingTop = UDim.new(0, 2)
+    dPad.PaddingLeft = UDim.new(0, 2)
+    dPad.PaddingRight = UDim.new(0, 2)
+    dPad.Parent = dropFrame
+
+    local selected = default
+    callback(selected)
+
+    for _, item in ipairs(items) do
+        local opt = Instance.new("TextButton")
+        opt.Size = UDim2.new(1, 0, 0, 26)
+        opt.BackgroundColor3 = C.Section
+        opt.Text = item
+        opt.TextSize = 12
+        opt.Font = Enum.Font.Gotham
+        opt.TextColor3 = C.Text
+        opt.BorderSizePixel = 0
+        opt.ZIndex = 21
+        opt.Parent = dropFrame
+        corner(opt, 4)
+        opt.MouseEnter:Connect(function() tweenBG(opt, C.ItemHov) end)
+        opt.MouseLeave:Connect(function() tweenBG(opt, C.Section) end)
+        opt.MouseButton1Click:Connect(function()
+            selected = item
+            valBtn.Text = item .. "  ▾"
+            dropFrame.Visible = false
+            callback(selected)
+        end)
+    end
+
+    valBtn.MouseButton1Click:Connect(function()
+        dropFrame.Visible = not dropFrame.Visible
+    end)
+
+    return container
+end
+
+-- ============================================================
+-- PAGE: MAIN
+-- ============================================================
+local MainPage = Pages["Main"]
+
+makeSection(MainPage, "Auto Spin")
+makeDropdown(MainPage, "Spin Type", { "Normal", "Fast" }, "Normal", function(v)
+    State.SpinType = v
+end)
+makeToggle(MainPage, "Auto Spin", "Continuously spins for fruits", function(val)
+    State.AutoSpin = val
+    if val then
+        State.AutoSpinThread = task.spawn(function()
+            while State.AutoSpin do
+                local ok, err = pcall(function()
+                    local Event = ReplicatedStorage:WaitForChild("Replicator")
+                    if State.SpinType == "Fast" then
+                        Event:InvokeServer("FruitsHandler", "Spin", { Type = "Fast" })
+                    else
+                        Event:InvokeServer("FruitsHandler", "Spin", {})
+                    end
+                end)
+                if not ok then warn("[AutoSpin]", err) end
+                task.wait(1)
+            end
+        end)
+    else
+        if State.AutoSpinThread then
+            task.cancel(State.AutoSpinThread)
+            State.AutoSpinThread = nil
+        end
+    end
+end)
+
+makeSection(MainPage, "Auto Farm")
+makeDropdown(MainPage, "Farm Keys", { "1", "2", "3", "4" }, "1", function(v)
+    State.SelectedFarm = {}
+    State.SelectedFarm[v] = true
+end)
+makeToggle(MainPage, "Auto Farm", "Presses selected keys + clicks", function(val)
+    State.AutoFarm = val
+    if val then
+        local KeyMap = {
+            ["1"] = Enum.KeyCode.One,
+            ["2"] = Enum.KeyCode.Two,
+            ["3"] = Enum.KeyCode.Three,
+            ["4"] = Enum.KeyCode.Four,
+        }
+        State.AutoFarmThread = task.spawn(function()
+            while State.AutoFarm do
+                for key, code in pairs(KeyMap) do
+                    if not State.AutoFarm then break end
+                    if State.SelectedFarm[key] then
+                        VIM:SendKeyEvent(true, code, false, game)
+                        task.wait(0.05)
+                        VIM:SendKeyEvent(false, code, false, game)
+                        task.wait(0.1)
+                        VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                        task.wait(0.05)
+                        VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                        task.wait(0.2)
+                    end
+                end
+                task.wait(0.1)
+            end
+        end)
+    else
+        if State.AutoFarmThread then
+            task.cancel(State.AutoFarmThread)
+            State.AutoFarmThread = nil
+        end
+    end
+end)
+
+-- ============================================================
+-- PAGE: FRUITS (scrollable picker + auto fruit hunt)
+-- ============================================================
+local FruitsPage = Pages["Fruits"]
+
+makeSection(FruitsPage, "Fruit Picker")
+
+local fruitInfo = Instance.new("TextLabel")
+fruitInfo.Size = UDim2.new(1, 0, 0, 18)
+fruitInfo.BackgroundTransparency = 1
+fruitInfo.Text = "Selected:  " .. State.SelectedFruit
+fruitInfo.TextSize = 13
+fruitInfo.Font = Enum.Font.GothamBold
+fruitInfo.TextColor3 = C.Accent
+fruitInfo.TextXAlignment = Enum.TextXAlignment.Left
+fruitInfo.Parent = FruitsPage
+
+-- Scrollable fruit list container
+local FruitScroll = Instance.new("ScrollingFrame")
+FruitScroll.Size = UDim2.new(1, 0, 0, 260)
+FruitScroll.BackgroundColor3 = C.Section
+FruitScroll.BorderSizePixel = 0
+FruitScroll.ScrollBarThickness = 4
+FruitScroll.ScrollBarImageColor3 = C.Accent
+FruitScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+FruitScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+FruitScroll.Parent = FruitsPage
+corner(FruitScroll, 8)
+stroke(FruitScroll, C.Border, 1)
+
+local FruitLayout = Instance.new("UIListLayout")
+FruitLayout.FillDirection = Enum.FillDirection.Vertical
+FruitLayout.Padding = UDim.new(0, 2)
+FruitLayout.Parent = FruitScroll
+
+local FruitPad = Instance.new("UIPadding")
+FruitPad.PaddingTop = UDim.new(0, 4)
+FruitPad.PaddingLeft = UDim.new(0, 4)
+FruitPad.PaddingRight = UDim.new(0, 4)
+FruitPad.Parent = FruitScroll
+
+local FruitButtons = {}
+local TIER_LABELS = {
+    [1]  = "★★ S+",
+    [6]  = "★ S",
+    [18] = "▲ A",
+    [28] = "■ B",
+    [34] = "▼ C",
+    [40] = "▼ D",
+}
+
+for i, fruit in ipairs(ALL_FRUITS) do
+    -- Tier divider
+    if TIER_LABELS[i] then
+        local tierLbl = Instance.new("TextLabel")
+        tierLbl.Size = UDim2.new(1, -4, 0, 20)
+        tierLbl.BackgroundColor3 = C.AccentDim
+        tierLbl.Text = "  " .. TIER_LABELS[i]
+        tierLbl.TextSize = 11
+        tierLbl.Font = Enum.Font.GothamBold
+        tierLbl.TextColor3 = C.Accent
+        tierLbl.TextXAlignment = Enum.TextXAlignment.Left
+        tierLbl.BorderSizePixel = 0
+        tierLbl.Parent = FruitScroll
+        corner(tierLbl, 4)
+    end
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -4, 0, 30)
+    btn.BackgroundColor3 = C.Section
+    btn.Text = "  " .. fruit
+    btn.TextSize = 13
+    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = C.Text
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    btn.Parent = FruitScroll
+    corner(btn, 4)
+
+    btn.MouseEnter:Connect(function()
+        if State.SelectedFruit ~= fruit then tweenBG(btn, C.ItemHov) end
+    end)
+    btn.MouseLeave:Connect(function()
+        if State.SelectedFruit ~= fruit then tweenBG(btn, C.Section) end
+    end)
+    btn.MouseButton1Click:Connect(function()
+        -- Deselect old
+        for _, b in pairs(FruitButtons) do
+            tweenBG(b.btn, C.Section)
+            b.btn.TextColor3 = C.Text
+        end
+        State.SelectedFruit = fruit
+        fruitInfo.Text = "Selected:  " .. fruit
+        tweenBG(btn, C.ItemSel)
+        btn.TextColor3 = Color3.new(1,1,1)
+    end)
+
+    FruitButtons[i] = { btn = btn, fruit = fruit }
+end
+
+makeSection(FruitsPage, "Auto Fruit Hunt")
+makeToggle(FruitsPage, "Hunt for Selected Fruit", "Auto-spins until you get the chosen fruit", function(val)
+    State.AutoFruitHunt = val
+    if val then
+        State.AutoHuntThread = task.spawn(function()
+            while State.AutoFruitHunt do
+                local ok, result = pcall(function()
+                    local Event = ReplicatedStorage:WaitForChild("Replicator")
+                    return table.pack(Event:InvokeServer("FruitsHandler", "Spin", {}))
+                end)
+                if ok and result then
+                    -- Check if fruit name appears in result
+                    for _, v in ipairs(result) do
+                        if type(v) == "string" and v:find(State.SelectedFruit) then
+                            notify("🎉 Got " .. State.SelectedFruit .. "!")
+                            State.AutoFruitHunt = false
+                            break
+                        end
+                    end
+                end
+                task.wait(1)
+            end
+        end)
+    else
+        if State.AutoHuntThread then
+            task.cancel(State.AutoHuntThread)
+            State.AutoHuntThread = nil
+        end
+    end
+end)
+
+-- ============================================================
+-- PAGE: CODES
+-- ============================================================
+local CodesPage = Pages["Codes"]
+
+makeSection(CodesPage, "Working Codes  —  Oct 2026")
+
+local function redeemCode(code)
+    local ok, err = pcall(function()
+        local Event = ReplicatedStorage:WaitForChild("Replicator")
+        Event:InvokeServer("Codes", "Redeem", { Code = code })
+    end)
+    if ok then
+        notify("✅ Redeemed: " .. code)
+    else
+        -- Fallback: try alternate handler names
+        local ok2, err2 = pcall(function()
+            local Event = ReplicatedStorage:WaitForChild("Replicator")
+            Event:InvokeServer("CodesHandler", "Redeem", code)
+        end)
+        if ok2 then
+            notify("✅ Redeemed: " .. code)
+        else
+            notify("⚠ Check in-game code box: " .. code, true)
+        end
+    end
+end
+
+makeButton(CodesPage, "⚡ Redeem ALL Codes", function()
+    task.spawn(function()
+        for _, entry in ipairs(WORKING_CODES) do
+            redeemCode(entry.code)
+            task.wait(0.4)
+        end
+        notify("✅ All codes attempted!")
+    end)
+end)
+
+-- Divider
+local divFrame = Instance.new("Frame")
+divFrame.Size = UDim2.new(1, 0, 0, 1)
+divFrame.BackgroundColor3 = C.Border
+divFrame.BorderSizePixel = 0
+divFrame.Parent = CodesPage
+
+for _, entry in ipairs(WORKING_CODES) do
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 42)
+    row.BackgroundColor3 = C.Section
+    row.BorderSizePixel = 0
+    row.Parent = CodesPage
+    corner(row, 6)
+
+    local codeLbl = Instance.new("TextLabel")
+    codeLbl.Size = UDim2.new(0.55, 0, 0.55, 0)
+    codeLbl.Position = UDim2.new(0, 10, 0, 4)
+    codeLbl.BackgroundTransparency = 1
+    codeLbl.Text = entry.code
+    codeLbl.TextSize = 13
+    codeLbl.Font = Enum.Font.GothamBold
+    codeLbl.TextColor3 = C.Text
+    codeLbl.TextXAlignment = Enum.TextXAlignment.Left
+    codeLbl.Parent = row
+
+    local rewardLbl = Instance.new("TextLabel")
+    rewardLbl.Size = UDim2.new(0.55, 0, 0.45, 0)
+    rewardLbl.Position = UDim2.new(0, 10, 0.55, 0)
+    rewardLbl.BackgroundTransparency = 1
+    rewardLbl.Text = entry.reward
+    rewardLbl.TextSize = 10
+    rewardLbl.Font = Enum.Font.Gotham
+    rewardLbl.TextColor3 = C.Green
+    rewardLbl.TextXAlignment = Enum.TextXAlignment.Left
+    rewardLbl.Parent = row
+
+    local redeemBtn = Instance.new("TextButton")
+    redeemBtn.Size = UDim2.new(0, 80, 0, 26)
+    redeemBtn.Position = UDim2.new(1, -90, 0.5, -13)
+    redeemBtn.BackgroundColor3 = C.Accent
+    redeemBtn.Text = "Redeem"
+    redeemBtn.TextSize = 11
+    redeemBtn.Font = Enum.Font.GothamBold
+    redeemBtn.TextColor3 = Color3.new(1,1,1)
+    redeemBtn.BorderSizePixel = 0
+    redeemBtn.Parent = row
+    corner(redeemBtn, 6)
+
+    local codeStr = entry.code
+    redeemBtn.MouseButton1Click:Connect(function()
+        redeemCode(codeStr)
+    end)
+    redeemBtn.MouseEnter:Connect(function() tweenBG(redeemBtn, C.AccentHov) end)
+    redeemBtn.MouseLeave:Connect(function() tweenBG(redeemBtn, C.Accent) end)
+end
+
+-- ============================================================
+-- PAGE: VISUALS
+-- ============================================================
+local VisualsPage = Pages["Visuals"]
+
+-- ── Kill Notification ─────────────────────────────────────────
+makeSection(VisualsPage, "Kill Notification")
+
+local killVictimBox = makeTextbox(VisualsPage, "Victim User ID", function(v) State.KillData.VictimId = v end)
+local killPlayerBox = makeTextbox(VisualsPage, "Killer User ID", function(v) State.KillData.PlayerId = v end)
+local killLengthBox = makeTextbox(VisualsPage, "Duration (seconds, default 8)", function(v) State.KillData.Length = v end)
+
+local function getNil(name, debugId)
+    for _, obj in getnilinstances() do
+        if obj.Name == name and obj:GetDebugId() == debugId then
+            return obj
+        end
+    end
+end
+
+makeButton(VisualsPage, "Fire Kill Notification", function()
+    local victimId = tonumber(State.KillData.VictimId)
+    local playerId = tonumber(State.KillData.PlayerId)
+    local length   = tonumber(State.KillData.Length) or 8
+    if not victimId or not playerId then
+        notify("⚠ Enter valid Victim + Killer IDs", true)
+        return
+    end
+    local ok, err = pcall(function()
+        local Event = ReplicatedStorage:WaitForChild("ReplicatorNoYield")
+        firesignal(Event.OnClientEvent, "KillFeed", "Add", {
+            Victim = victimId,
+            Player = playerId,
+            Frame = getNil("Template", "0_1519774"),
+            Length = length,
+            StartTime = tick(),
+            FromServer = true,
+        })
+    end)
+    if not ok then notify("⚠ Kill notif failed: " .. tostring(err), true) end
+end)
+
+-- ── Gem Notification ─────────────────────────────────────────
+makeSection(VisualsPage, "Gem Notification")
+makeTextbox(VisualsPage, "Gem Amount", function(v) State.GemAmount = v end)
+makeButton(VisualsPage, "Fire Gem Notification", function()
+    local amount = tonumber(State.GemAmount)
+    if not amount then notify("⚠ Enter a valid gem amount", true) return end
+    local ok, err = pcall(function()
+        local Event = ReplicatedStorage:WaitForChild("Replicator")
+        local cb = getcallbackvalue(Event, "OnClientInvoke")
+        cb("Notifications", "Start", {
+            FromServer = true,
+            Text = "<Color=255,0,255><Gained " .. amount .. " gems!>",
+            StartTime = tick(),
+            Length = 5,
+            Size = 0.8,
+        })
+    end)
+    if not ok then notify("⚠ Gem notif failed", true) end
+end)
+
+-- ── Level Notification ────────────────────────────────────────
+makeSection(VisualsPage, "Level Notification")
+makeTextbox(VisualsPage, "Level Number", function(v) State.LevelAmount = v end)
+makeButton(VisualsPage, "Fire Level Notification", function()
+    local level = tonumber(State.LevelAmount)
+    if not level then notify("⚠ Enter a valid level number", true) return end
+    local ok, err = pcall(function()
+        local Event = ReplicatedStorage:WaitForChild("Replicator")
+        local cb = getcallbackvalue(Event, "OnClientInvoke")
+        cb("Notifications", "Start", {
+            FromServer = true,
+            Text = "<Color=255,255,0><Level Up!> (" .. level .. ")",
+            StartTime = tick(),
+            Length = 5,
+            Size = 0.8,
+        })
+    end)
+    if not ok then notify("⚠ Level notif failed", true) end
+end)
+
+-- ============================================================
+-- PAGE: SPOOFER
+-- ============================================================
+local SpooferPage = Pages["Spoofer"]
+
+local OrigLeadData = {
+    TournamentWins = {
+        { key = "205985849",  value = 1043 },
+        { key = "158201183",  value = 888  },
+        { key = "4719303144", value = 728  },
+        { key = "1319033257", value = 693  },
+        { key = "3533945986", value = 585  },
+        { key = "2669506928", value = 546  },
+        { key = "4544809774", value = 516  },
+        { key = "1882225600", value = 494  },
+        { key = "2654011494", value = 491  },
+        { key = "331760241",  value = 462  },
+    },
+    Bounty = {
+        { key = "3011634890", value = 999890648 },
+        { key = "4582742350", value = 999694623 },
+        { key = "1839147598", value = 993634926 },
+        { key = "5683974116", value = 992924183 },
+        { key = "7226631176", value = 990996179 },
+        { key = "3623679695", value = 979748479 },
+        { key = "2431757115", value = 973849813 },
+        { key = "5636244612", value = 952511967 },
+        { key = "425315060",  value = 950385511 },
+        { key = "4083456353", value = 940571517 },
+    },
+}
+
+makeSection(SpooferPage, "Leaderboard Spoofer")
+
+makeTextbox(SpooferPage, "Your User ID", function(v) State.LeadData.UserId = v end)
+makeTextbox(SpooferPage, "Win Count", function(v) State.LeadData.Wins = v end)
+makeTextbox(SpooferPage, "Position (1–100)", function(v) State.LeadData.Position = v end)
+
+makeToggle(SpooferPage, "Enable Spoofer", "Injects your entry into the leaderboard", function(val)
+    State.LeaderSpoof = val
+    if val then
+        local userId  = State.LeadData.UserId
+        local wins    = tonumber(State.LeadData.Wins)
+        local pos     = tonumber(State.LeadData.Position)
+        if not userId or userId == "" then notify("⚠ Enter a User ID", true) return end
+        if not wins then notify("⚠ Enter a win count", true) return end
+        if not pos or pos < 1 or pos > 100 then notify("⚠ Position must be 1–100", true) return end
+
+        local fakeData = { TournamentWins = {}, Bounty = {} }
+        for _, e in ipairs(OrigLeadData.TournamentWins) do
+            table.insert(fakeData.TournamentWins, { key = e.key, value = e.value })
+        end
+        for _, e in ipairs(OrigLeadData.Bounty) do
+            table.insert(fakeData.Bounty, { key = e.key, value = e.value })
+        end
+        table.insert(fakeData.TournamentWins, pos, { key = userId, value = wins })
+
+        local ok, err = pcall(function()
+            local Event = ReplicatedStorage:WaitForChild("ReplicatorNoYield")
+            firesignal(Event.OnClientEvent, "Leaderboards", "Update", fakeData)
+        end)
+        if ok then
+            notify("✅ Leaderboard spoofed at #" .. pos)
+        else
+            notify("⚠ Spoof failed: " .. tostring(err), true)
+        end
+    else
+        -- Restore
+        local ok = pcall(function()
+            local Event = ReplicatedStorage:WaitForChild("ReplicatorNoYield")
+            firesignal(Event.OnClientEvent, "Leaderboards", "Update", OrigLeadData)
+        end)
+        if ok then notify("✅ Leaderboard restored") end
+    end
+end)
+
+makeButton(SpooferPage, "Restore Leaderboard", function()
+    local ok = pcall(function()
+        local Event = ReplicatedStorage:WaitForChild("ReplicatorNoYield")
+        firesignal(Event.OnClientEvent, "Leaderboards", "Update", OrigLeadData)
+    end)
+    if ok then notify("✅ Leaderboard restored") end
+end, Color3.fromRGB(55, 130, 80))
+
+-- ============================================================
+-- INIT
+-- ============================================================
+switchTab("Main")
+
+-- Entrance tween
+Window.Size = UDim2.new(0, 760, 0, 0)
+TweenService:Create(Window, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+    Size = UDim2.new(0, 760, 0, 500)
+}):Play()
+
+notify("🍇 FB Script loaded — Oct 2026")
